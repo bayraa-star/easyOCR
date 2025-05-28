@@ -1,0 +1,75 @@
+--------------------------------------------------------------------------------
+dataset_root: all_data
+opt.select_data: ['mn_train']
+opt.batch_ratio: ['1']
+--------------------------------------------------------------------------------
+dataset_root:    all_data	 dataset: mn_train
+sub-directory:	/mn_train	 num samples: 2497
+num total samples of mn_train: 2497 x 1.0 (total_data_usage_ratio) = 2497
+num samples of mn_train per batch: 32 x 1.0 (batch_ratio) = 32
+--------------------------------------------------------------------------------
+Total_batch_size: 32 = 32
+--------------------------------------------------------------------------------
+dataset_root:    all_data/mn_val	 dataset: /
+sub-directory:	/.	 num samples: 43
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+dataset_root: all_data
+opt.select_data: ['mn_train']
+opt.batch_ratio: ['1']
+--------------------------------------------------------------------------------
+dataset_root:    all_data	 dataset: mn_train
+sub-directory:	/mn_train	 num samples: 2497
+num total samples of mn_train: 2497 x 1.0 (total_data_usage_ratio) = 2497
+num samples of mn_train per batch: 32 x 1.0 (batch_ratio) = 32
+--------------------------------------------------------------------------------
+Total_batch_size: 32 = 32
+--------------------------------------------------------------------------------
+dataset_root:    all_data/mn_val	 dataset: /
+sub-directory:	/.	 num samples: 43
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+dataset_root: all_data
+opt.select_data: ['mn_train']
+opt.batch_ratio: ['1']
+--------------------------------------------------------------------------------
+dataset_root:    all_data	 dataset: mn_train
+sub-directory:	/mn_train	 num samples: 2497
+num total samples of mn_train: 2497 x 1.0 (total_data_usage_ratio) = 2497
+num samples of mn_train per batch: 32 x 1.0 (batch_ratio) = 32
+--------------------------------------------------------------------------------
+Total_batch_size: 32 = 32
+--------------------------------------------------------------------------------
+dataset_root:    all_data/mn_val	 dataset: /
+sub-directory:	/.	 num samples: 43
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+dataset_root: all_data
+opt.select_data: ['mn_train']
+opt.batch_ratio: ['1']
+--------------------------------------------------------------------------------
+dataset_root:    all_data	 dataset: mn_train
+sub-directory:	/mn_train	 num samples: 2497
+num total samples of mn_train: 2497 x 1.0 (total_data_usage_ratio) = 2497
+num samples of mn_train per batch: 32 x 1.0 (batch_ratio) = 32
+--------------------------------------------------------------------------------
+Total_batch_size: 32 = 32
+--------------------------------------------------------------------------------
+dataset_root:    all_data/mn_val	 dataset: /
+sub-directory:	/.	 num samples: 43
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+dataset_root: all_data
+opt.select_data: ['mn_train']
+opt.batch_ratio: ['1']
+--------------------------------------------------------------------------------
+dataset_root:    all_data	 dataset: mn_train
+sub-directory:	/mn_train	 num samples: 2497
+num total samples of mn_train: 2497 x 1.0 (total_data_usage_ratio) = 2497
+num samples of mn_train per batch: 32 x 1.0 (batch_ratio) = 32
+--------------------------------------------------------------------------------
+Total_batch_size: 32 = 32
+--------------------------------------------------------------------------------
+dataset_root:    all_data/mn_val	 dataset: /
+sub-directory:	/.	 num samples: 43
+--------------------------------------------------------------------------------
