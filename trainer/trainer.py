@@ -41,7 +41,7 @@ def get_config(file_path):
 # In[ ]:
 
 
-opt = get_config("config_files/mn_filtered_config_v5.yaml")
+opt = get_config("config_files/mn_filtered_config_v6m1000.yaml")
 train(opt, amp=False)
 
 # In[ ]:

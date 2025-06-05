@@ -31,7 +31,7 @@ def adjust_contrast_grey(img, target = 0.4):
 
 class Batch_Balanced_Dataset(object):
 
-    def __init__(self, opt):
+    def __init__(self, opt, transform=None):
         """
         Modulate the data ratio in the batch.
         For example, when select_data is "MJ-ST" and batch_ratio is "0.5-0.5",
@@ -54,7 +54,7 @@ class Batch_Balanced_Dataset(object):
             _batch_size = max(round(opt.batch_size * float(batch_ratio_d)), 1)
             print(dashed_line)
             log.write(dashed_line + '\n')
-            _dataset, _dataset_log = hierarchical_dataset(root=opt.train_data, opt=opt, select_data=[selected_d])
+            _dataset, _dataset_log = hierarchical_dataset(root=opt.train_data, opt=opt, select_data=[selected_d], transform=transform)
             total_number_dataset = len(_dataset)
             log.write(_dataset_log)
 
@@ -115,7 +115,7 @@ class Batch_Balanced_Dataset(object):
         return balanced_batch_images, balanced_batch_texts
 
 
-def hierarchical_dataset(root, opt, select_data='/'):
+def hierarchical_dataset(root, opt, select_data='/', transform=None):
     """ select_data='/' contains all sub-directory of root directory """
     dataset_list = []
     dataset_log = f'dataset_root:    {root}\t dataset: {select_data[0]}'
@@ -130,7 +130,7 @@ def hierarchical_dataset(root, opt, select_data='/'):
                     break
 
             if select_flag:
-                dataset = OCRDataset(dirpath, opt)
+                dataset = OCRDataset(dirpath, opt, transform=transform)
                 sub_dataset_log = f'sub-directory:\t/{os.path.relpath(dirpath, root)}\t num samples: {len(dataset)}'
                 print(sub_dataset_log)
                 dataset_log += f'{sub_dataset_log}\n'
@@ -142,10 +142,10 @@ def hierarchical_dataset(root, opt, select_data='/'):
 
 class OCRDataset(Dataset):
 
-    def __init__(self, root, opt):
-
+    def __init__(self, root, opt, transform=None):
         self.root = root
         self.opt = opt
+        self.transform = transform
         print(root)
         self.df = pd.read_csv(os.path.join(root,'labels.csv'), sep='^([^,]+),', engine='python', usecols=['filename', 'words'], keep_default_na=False)
         self.nSamples = len(self.df)
@@ -180,6 +180,9 @@ class OCRDataset(Dataset):
             img = Image.open(img_fpath).convert('RGB')  # for color image
         else:
             img = Image.open(img_fpath).convert('L')
+
+        if self.transform is not None:
+            img = self.transform(img)
 
         if not self.opt.sensitive:
             label = label.lower()
@@ -240,7 +243,6 @@ class AlignCollate(object):
             resized_max_w = self.imgW
             input_channel = 3 if images[0].mode == 'RGB' else 1
             transform = NormalizePAD((input_channel, self.imgH, resized_max_w))
-
             resized_images = []
             for image in images:
                 w, h = image.size

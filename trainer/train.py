@@ -3,6 +3,7 @@ import sys
 import time
 import random
 import torch
+import torchvision.transforms as transforms
 import torch.backends.cudnn as cudnn
 import torch.nn as nn
 import torch.nn.init as init
@@ -10,12 +11,19 @@ import torch.optim as optim
 import torch.utils.data
 from torch.cuda.amp import autocast, GradScaler
 import numpy as np
-
 from utils import CTCLabelConverter, AttnLabelConverter, Averager
 from dataset import hierarchical_dataset, AlignCollate, Batch_Balanced_Dataset
 from model import Model
 from test import validation
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+# Augmentation transforms for training
+augmentation_transform = transforms.Compose([
+    transforms.RandomRotation(10),                                        # Rotate by up to 10 degrees
+    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2), # Adjust brightness and contrast
+    transforms.RandomAffine(degrees=0, shear=10),                         # Apply shear transformation
+    transforms.RandomAffine(degrees=0, scale=(0.9, 1.1)),
+])
 
 def count_parameters(model):
     print("Modules, Parameters")
@@ -37,11 +45,13 @@ def train(opt, show_number = 2, amp=False):
 
     opt.select_data = opt.select_data.split('-')
     opt.batch_ratio = opt.batch_ratio.split('-')
-    train_dataset = Batch_Balanced_Dataset(opt)
+
+    train_dataset = Batch_Balanced_Dataset(opt, transform=augmentation_transform)
 
     log = open(f'./saved_models/{opt.experiment_name}/log_dataset.txt', 'a', encoding="utf8")
     AlignCollate_valid = AlignCollate(imgH=opt.imgH, imgW=opt.imgW, keep_ratio_with_pad=opt.PAD, contrast_adjust=opt.contrast_adjust)
-    valid_dataset, valid_dataset_log = hierarchical_dataset(root=opt.valid_data, opt=opt)
+    
+    valid_dataset, valid_dataset_log = hierarchical_dataset(root=opt.valid_data, opt=opt, transform=None)
     valid_loader = torch.utils.data.DataLoader(
         valid_dataset, batch_size=min(32, opt.batch_size),
         shuffle=True,  # 'True' to check training progress with validation function.
