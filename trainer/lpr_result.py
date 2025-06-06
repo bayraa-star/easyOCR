@@ -86,8 +86,8 @@ def predict_plate(image_path, model_path, config_path):
     return pred_str
 
 if __name__ == "__main__":
-    image_path = './all_data/mn_train/de02168a-dc64-41c9-ab32-5d698a671e1a.jpg'
-    model_path = './saved_models/mn_filtered_v15-1200image/best_accuracy.pth'
+    image_path = './7500УНТ_plate_0.jpg'
+    model_path = './saved_models/mn_filtered_v16-1200image/best_accuracy.pth'
     config_path = './config_files/mn_filtered_config_v6m1000.yaml'
     predicted_text = predict_plate(image_path, model_path, config_path)
     print(f"Predicted License Plate: {predicted_text}")
