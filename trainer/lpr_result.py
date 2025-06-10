@@ -4,14 +4,17 @@ import torchvision.transforms as transforms
 from model import Model
 from utils import CTCLabelConverter, AttrDict
 import yaml
+import cv2
+
 
 def load_config(file_path):
     """Load the configuration from a YAML file and prepare the character set."""
-    with open(file_path, 'r', encoding="utf8") as stream:
+    with open(file_path, "r", encoding="utf8") as stream:
         opt = yaml.safe_load(stream)
     opt = AttrDict(opt)
     opt.character = opt.number + opt.symbol + opt.lang_char
     return opt
+
 
 def resize_with_pad(img, target_height, target_width):
     """Resize the image while maintaining aspect ratio and pad to target size."""
@@ -19,7 +22,6 @@ def resize_with_pad(img, target_height, target_width):
     ratio = target_height / h
     new_w = int(w * ratio)
     if new_w > target_width:
-        # Scale to fit width if new width exceeds target
         ratio = target_width / w
         new_h = int(h * ratio)
         img = img.resize((target_width, new_h), Image.BICUBIC)
@@ -31,63 +33,50 @@ def resize_with_pad(img, target_height, target_width):
         img = ImageOps.expand(img, padding, fill=0)  # Black padding
     return img
 
-def predict_plate(image_path, model_path, config_path):
-    """Predict the text on a license plate image using the trained OCR model."""
-    # Load configuration
-    opt = load_config(config_path)
 
-    # Compute num_class
-    if 'CTC' in opt.Prediction:
-        opt.num_class = len(opt.character) + 1  # +1 for CTC blank token
-    else:
-        opt.num_class = len(opt.character)
+class LicensePlateRecognizer:
+    def __init__(self, model_path, config_path):
+        """Initialize the recognizer with model and config paths."""
+        self.opt = load_config(config_path)
+        if "CTC" in self.opt.Prediction:
+            self.opt.num_class = len(self.opt.character) + 1  # +1 for CTC blank
+        else:
+            self.opt.num_class = len(self.opt.character)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = Model(self.opt).to(self.device)
+        state_dict = torch.load(model_path, map_location=self.device)
+        if "module." in list(state_dict.keys())[0]:
+            state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+        self.model.load_state_dict(state_dict)
+        self.model.eval()
+        self.converter = CTCLabelConverter(self.opt.character)
 
-    # Set device
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    def predict(self, image_array):
+        """Predict text from a NumPy image array."""
+        gray = cv2.cvtColor(image_array, cv2.COLOR_BGR2GRAY)
+        img = Image.fromarray(gray)  # Convert to PIL Image
+        img = resize_with_pad(img, self.opt.imgH, self.opt.imgW)
+        img = transforms.ToTensor()(img)  # To tensor [0, 1]
+        img = transforms.Normalize(mean=[0.5], std=[0.5])(img)  # Normalize [-1, 1]
+        img = img.unsqueeze(0).to(self.device)  # Add batch dimension
 
-    # Load the model
-    model = Model(opt).to(device)
-    state_dict = torch.load(model_path, map_location=device)
-    if 'module.' in list(state_dict.keys())[0]:
-        state_dict = {k.replace('module.', ''): v for k, v in state_dict.items()}
-    model.load_state_dict(state_dict)
-    model.eval()
+        dummy_text = torch.zeros(1, self.opt.batch_max_length, dtype=torch.long).to(
+            self.device
+        )
 
-    # Load and preprocess the image
-    img = Image.open(image_path).convert('L')  # Grayscale
-    img = resize_with_pad(img, opt.imgH, opt.imgW)  # Resize with padding
-    img = transforms.ToTensor()(img)  # To tensor [0, 1]
-    img = transforms.Normalize(mean=[0.5], std=[0.5])(img)  # Normalize [-1, 1]
-    img = img.unsqueeze(0).to(device)  # Add batch dimension
+        with torch.no_grad():
+            preds = self.model(img, dummy_text).log_softmax(2)
 
-    # Dummy text tensor (required by model but not used in prediction)
-    dummy_text = torch.zeros(1, opt.batch_max_length, dtype=torch.long).to(device)
+        preds_size = torch.IntTensor([preds.size(1)])
+        _, preds_index = preds.max(2)
+        pred_str = self.converter.decode_greedy(preds_index[0].cpu(), preds_size.cpu())
 
-    # Run inference
-    with torch.no_grad():
-        preds = model(img, dummy_text).log_softmax(2)  # (batch, time_steps, num_class)
+        if "[blank]" in pred_str:
+            pred_str = pred_str.replace("[blank]", "")
+            cleaned = []
+            for char in pred_str:
+                if not cleaned or char != cleaned[-1]:
+                    cleaned.append(char)
+            pred_str = "".join(cleaned)
 
-    # Decode the prediction
-    converter = CTCLabelConverter(opt.character)
-    preds_size = torch.IntTensor([preds.size(1)])  # Sequence length
-    _, preds_index = preds.max(2)  # Max probability indices
-    pred_str = converter.decode_greedy(preds_index[0].cpu(), preds_size.cpu())
-
-    # Post-process if '[blank]' appears (workaround if decode_greedy is buggy)
-    if '[blank]' in pred_str:
-        pred_str = pred_str.replace('[blank]', '')
-        # Collapse duplicates (if not handled by decode_greedy)
-        cleaned = []
-        for char in pred_str:
-            if not cleaned or char != cleaned[-1]:
-                cleaned.append(char)
-        pred_str = ''.join(cleaned)
-
-    return pred_str
-
-if __name__ == "__main__":
-    image_path = './7500УНТ_plate_0.jpg'
-    model_path = './saved_models/mn_filtered_v16-1200image/best_accuracy.pth'
-    config_path = './config_files/mn_filtered_config_v6m1000.yaml'
-    predicted_text = predict_plate(image_path, model_path, config_path)
-    print(f"Predicted License Plate: {predicted_text}")
+        return pred_str
