@@ -268,8 +268,14 @@ def train(opt, show_number = 2, amp=False):
                 predicted_result_log = f'{dashed_line}\n{head}\n{dashed_line}\n'
                 
                 #show_number = min(show_number, len(labels))
+                #show_number = 10
                 
-                start = random.randint(0,len(labels) - show_number )    
+                #start = random.randint(0,len(labels) - show_number )
+               # show_number = min(show_number, len(labels))  # Uncomment or add this
+                # show_number = 10  # Ensure this is commented out or removed
+                show_number = min(show_number, len(labels))  # Use the passed show_number (2) or len(labels), whichever is smaller
+                start = random.randint(0, len(labels) - show_number) if show_number < len(labels) else 0       
+
                 for gt, pred, confidence in zip(labels[start:start+show_number], preds[start:start+show_number], confidence_score[start:start+show_number]):
                     if 'Attn' in opt.Prediction:
                         gt = gt[:gt.find('[s]')]

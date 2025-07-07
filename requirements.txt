@@ -1,6 +1,7 @@
 torch
 torchvision>=0.5
 opencv-python-headless
+opencv-python
 scipy
 numpy
 Pillow
@@ -9,4 +10,8 @@ python-bidi
 PyYAML
 Shapely
 pyclipper
+pandas
 ninja
+six
+natsort
+nltk

@@ -17,7 +17,7 @@ torch.set_num_threads(num_threads)
 cv2.setNumThreads(num_threads)
 
 # Define frame size for consistency
-frame_width, frame_height = 1280, 720  # Adjust as needed
+frame_width, frame_height = 640, 480  # Adjust as needed
 
 
 def load_config(file_path):
@@ -96,7 +96,7 @@ class LicensePlateRecognizer:
 
 
 # Load video
-cap = cv2.VideoCapture("../videos/tollgate.mp4")
+cap = cv2.VideoCapture("./output.mp4")
 if not cap.isOpened():
     print("Error: Could not open video.")
     exit()
@@ -132,11 +132,11 @@ prev_roi = first_frame[ROI_y1:ROI_y2, ROI_x1:ROI_x2]
 prev_gray_roi = cv2.cvtColor(prev_roi, cv2.COLOR_BGR2GRAY)
 
 # Load Plate detection model
-yolo_model = YOLO("../models/best_last_version.pt")
+yolo_model = YOLO("./best.pt")
 
 # Load OCR model
 ocr_model = LicensePlateRecognizer(
-    model_path="./saved_models/mn_filtered_v16-1200image/ocr.pth",
+    model_path="./ocr.pth",
     config_path="./config_files/mn_filtered_config_v6m1000.yaml",
 )
 

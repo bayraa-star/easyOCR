@@ -1,7 +1,7 @@
 number: '0123456789'
 symbol: ""
 lang_char: 'АБВГДЕЗИКЛМНОПРСТУХЦЧЭЯҮӨ'
-experiment_name: 'mn_filtered_v16-1200image'
+experiment_name: 'mn_filtered_v24-10k<image'
 train_data: 'all_data'
 valid_data: 'all_data/mn_val'
 manualSeed: 1111
