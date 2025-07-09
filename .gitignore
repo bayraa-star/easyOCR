@@ -110,3 +110,8 @@ ENV/
 .vscode/
 .vs/
 .idea/
+
+
+
+#Videos
+/opt/easyOCR/output.mp4
