@@ -42,10 +42,10 @@ recognizer = LicensePlateRecognizer(MODEL_PATH, CONFIG_PATH)
 detector = YOLO(DETECTION_MODEL_PATH)
 
 @app.post("/predict")
-async def predict(full_photo: UploadFile = File(...), credentials: HTTPBasicCredentials = Depends(verify_credentials)):
+async def predict(file: UploadFile = File(...), credentials: HTTPBasicCredentials = Depends(verify_credentials)):
     try:
         # Read the uploaded file
-        contents = await full_photo.read()
+        contents = await file.read()
         
         # Convert to NumPy array and decode as image
         nparr = np.frombuffer(contents, np.uint8)
@@ -84,7 +84,7 @@ async def predict(full_photo: UploadFile = File(...), credentials: HTTPBasicCred
         plate_number = recognizer.predict(cropped_img)
         
         response = {"plate_number": plate_number}
-        print(response.plate_number)
+        print(response["plate_number"])
 
         return response
 

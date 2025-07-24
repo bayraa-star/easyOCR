@@ -8,7 +8,8 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-env/
+.env/
+trainer/.env
 trainer/all_data/mn_test/
 trainer/all_data/mn_train/
 trainer/all_data/mn_val/

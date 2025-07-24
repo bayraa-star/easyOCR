@@ -92,10 +92,10 @@ async def predict(full_photo: UploadFile = File(...), credentials: HTTPBasicCred
         
         response = {
             "plate_number": plate_number,
-            "full_photo_base64": full_photo_base64,
+            #"full_photo_base64": full_photo_base64,
             "cropped_img_base64": cropped_img_base64
         }
-        print(response)
+        print(response["plate_number"])
 
         return response
 

@@ -15,3 +15,6 @@ ninja
 six
 natsort
 nltk
+fastapi
+uvicorn
+python-dotenv
