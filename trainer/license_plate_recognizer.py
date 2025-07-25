@@ -5,6 +5,8 @@ from model import Model
 from utils import CTCLabelConverter, AttrDict
 import yaml
 import cv2
+import torch.nn as nn
+import math
 
 
 def load_config(file_path):
@@ -66,6 +68,7 @@ class LicensePlateRecognizer:
 
         with torch.no_grad():
             preds = self.model(img, dummy_text).log_softmax(2)
+            probs = preds.exp()
 
         preds_size = torch.IntTensor([preds.size(1)])
         _, preds_index = preds.max(2)
@@ -79,4 +82,21 @@ class LicensePlateRecognizer:
                     cleaned.append(char)
             pred_str = "".join(cleaned)
 
-        return pred_str
+        # Collect per-character confidences
+        preds_index = preds_index[0].cpu()  # (T,)
+        length = preds_size.item()
+        char_confs = []
+        for i in range(length):
+            curr = preds_index[i]
+            if curr != 0 and (i == 0 or curr != preds_index[i-1]):
+                conf = probs[0, i, curr].item()  # Since preds (B=1, T, C), probs[0, i, curr]
+                char_confs.append(conf)
+
+        if char_confs:
+            log_confs = [math.log(max(c, 1e-10)) for c in char_confs]
+            avg_log = sum(log_confs) / len(log_confs)
+            confidence = math.exp(avg_log)
+        else:
+            confidence = 0.0
+
+        return pred_str, confidence
