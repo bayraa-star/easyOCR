@@ -5,7 +5,7 @@
 # - Install Ultralytics for YOLOv8: pip install ultralytics
 # - Install FastAPI security dependencies: pip install fastapi[all]
 # - Install python-dotenv: pip install python-dotenv
-# - Run the app: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+# - Run the app: uvicorn App:app --host 0.0.0.0 --port 8000 --reload
 
 import os
 import base64
@@ -122,6 +122,69 @@ async def predict(full_photo: UploadFile = File(...), credentials: HTTPBasicCred
             "vehicle_attributes": vehicle_attributes,
             #"full_photo_base64": full_photo_base64,
             "cropped_img_base64": cropped_img_base64,
+        }
+        print(response["plate_number"])
+
+        return response
+
+    except Exception as e:
+        error_msg = str(e)
+        stack_trace = traceback.format_exc()
+        logger.error(f"Exception occurred: {error_msg}\n{stack_trace}")
+        return {"error": error_msg}
+
+@app.post("/predict-segment")
+async def predict_segment(full_photo: UploadFile = File(...), segment_photo: UploadFile = File(...), credentials: HTTPBasicCredentials = Depends(verify_credentials)):
+    try:
+        logger.info("Received request to /predict-segment")
+        
+        # Read the full_photo file
+        full_contents = await full_photo.read()
+        logger.info(f"Uploaded full_photo: {full_photo.filename}, size: {len(full_contents)} bytes")
+        
+        # Convert to base64 for full_photo (commented out in response as in original)
+        full_photo_base64 = base64.b64encode(full_contents).decode('utf-8')
+        
+        # Convert to NumPy array and decode as image
+        full_nparr = np.frombuffer(full_contents, np.uint8)
+        full_img = cv2.imdecode(full_nparr, cv2.IMREAD_COLOR)
+        
+        if full_img is None:
+            logger.error("Failed to decode full image")
+            return {"error": "Invalid full image file"}
+        
+        # Run multi-class vehicle detection on the full image
+        vehicle_attributes = detect_vehicle_attributes(full_img)
+        
+        # Print the multi-class predictions
+        print("Predicted labels for image:")
+        for category, value in vehicle_attributes.items():
+            print(f"{category}: {value}")
+        
+        # Read the segment_photo file
+        segment_contents = await segment_photo.read()
+        logger.info(f"Uploaded segment_photo: {segment_photo.filename}, size: {len(segment_contents)} bytes")
+        
+        # Convert to NumPy array and decode as image
+        segment_nparr = np.frombuffer(segment_contents, np.uint8)
+        segment_img = cv2.imdecode(segment_nparr, cv2.IMREAD_COLOR)
+        
+        if segment_img is None:
+            logger.error("Failed to decode segment image")
+            return {"error": "Invalid segment image file"}
+        
+        # Convert segment_img to base64
+        _, buffer = cv2.imencode('.jpg', segment_img)  # Encode as JPEG
+        segment_img_base64 = base64.b64encode(buffer).decode('utf-8')
+
+        plate_number = recognizer.predict(segment_img)
+        logger.info(f"Recognized plate number: {plate_number}")
+        
+        response = {
+            "plate_number": plate_number,
+            "vehicle_attributes": vehicle_attributes,
+            #"full_photo_base64": full_photo_base64,
+            "cropped_img_base64": segment_img_base64,
         }
         print(response["plate_number"])
 
