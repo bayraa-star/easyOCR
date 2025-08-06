@@ -9,6 +9,7 @@ import torch.nn as nn
 import timm
 import cv2
 import numpy as np
+from collections import defaultdict
 
 # Define the model class (must match the training code)
 class MultiLabelModel(nn.Module):
@@ -74,11 +75,20 @@ def detect_vehicle_attributes(img: np.ndarray) -> dict:
     # Run prediction
     predictions = predict_image(image_pil, model, transform, device)
     
-    # Collect predicted attributes in a dict
-    attributes = {}
+    # Collect predictions by category
+    categories = defaultdict(list)
     for label, prob in zip(labels, predictions):
         if prob > 0.5:
             category = get_category(label)
-            attributes[category] = f"{label}: {prob:.4f}"
+            categories[category].append((label, prob))
+    
+    # For each category, select the label with the highest probability
+    attributes = {}
+    for category, items in categories.items():
+        if items:
+            items.sort(key=lambda x: x[1], reverse=True)
+            top_label, top_prob = items[0]
+            attributes[category] = top_label
+            attributes[f"{category}_p"] = int(top_prob * 100)
     
     return attributes

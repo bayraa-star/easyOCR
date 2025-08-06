@@ -19,3 +19,5 @@ fastapi
 uvicorn
 python-dotenv
 timm
+ultralytics
+python-multipart

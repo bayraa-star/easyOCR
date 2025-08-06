@@ -118,7 +118,8 @@ async def predict(full_photo: UploadFile = File(...), credentials: HTTPBasicCred
         logger.info(f"Recognized plate number: {plate_number}")
         
         response = {
-            "plate_number": plate_number,
+            "plate_number": plate_number[0][0],
+            "precision": plate_number[1],
             "vehicle_attributes": vehicle_attributes,
             #"full_photo_base64": full_photo_base64,
             "cropped_img_base64": cropped_img_base64,
