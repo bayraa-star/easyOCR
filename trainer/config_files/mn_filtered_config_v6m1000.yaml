@@ -1,13 +1,13 @@
 number: '0123456789'
 symbol: ""
 lang_char: 'АБВГДЕЗИКЛМНОПРСТУХЦЧЭЯҮӨ'
-experiment_name: 'mn_filtered_v24-10k<image'
+experiment_name: 'mn_filtered_v24-85Kimage'
 train_data: 'all_data'
 valid_data: 'all_data/mn_val'
 manualSeed: 1111
 workers: 6
 batch_size: 32 #32
-num_iter: 70000
+num_iter: 85000
 valInterval: 5000
 saved_model: '' #'saved_models/en_filtered/iter_300000.pth'
 FT: False

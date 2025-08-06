@@ -45,7 +45,7 @@ def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
     return credentials
 
 # Initialize the recognizer and detector
-MODEL_PATH = 'saved_models/mn_filtered_v24-10k<image/best_accuracy.pth'  # OCR model (fix path if needed)
+MODEL_PATH = 'saved_models/mn_filtered_v24-85Kimage/best_accuracy.pth'  # OCR model (fix path if needed)
 CONFIG_PATH = 'config_files/mn_filtered_config_v6m1000.yaml'  # OCR config
 DETECTION_MODEL_PATH = 'saved_models/plate_detection/plate_detection.pt'
 
