@@ -10,7 +10,7 @@
 import os
 import base64
 import logging  # Added for more error logging
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status, BackgroundTasks, Body
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from dotenv import load_dotenv
 from license_plate_recognizer import LicensePlateRecognizer
@@ -18,8 +18,12 @@ from ultralytics import YOLO
 import numpy as np
 import cv2
 import io
-import traceback  # Added for detailed stack traces
-from multiclass.multiclass_detector import detect_vehicle_attributes  # Import the multi-class function
+import traceback
+from multiclass.multiclass_detector import detect_vehicle_attributes
+from typing import Dict, Any
+import pandas as pd
+from utils import AttrDict
+from train import train
 
 app = FastAPI()
 security = HTTPBasic()
@@ -51,6 +55,26 @@ DETECTION_MODEL_PATH = 'saved_models/plate_detection/plate_detection.pt'
 
 recognizer = LicensePlateRecognizer(MODEL_PATH, CONFIG_PATH)
 detector = YOLO(DETECTION_MODEL_PATH)
+
+def get_config_from_dict(config_dict: Dict[str, Any]):
+    opt = AttrDict(config_dict)
+    if opt.lang_char == 'None':
+        characters = ''
+        for data in opt.select_data.split('-'):
+            csv_path = os.path.join(opt.train_data, data, 'labels.csv')
+            df = pd.read_csv(csv_path, sep='^([^,]+),', engine='python', usecols=['filename', 'words'], keep_default_na=False)
+            all_char = ''.join(df['words'])
+            characters += ''.join(set(all_char))
+        characters = sorted(set(characters))
+        opt.character = ''.join(characters)
+    else:
+        opt.character = opt.number + opt.symbol + opt.lang_char
+    opt.character = ''.join(sorted(set(opt.character)))
+    os.makedirs(f'./saved_models/{opt.experiment_name}', exist_ok=True)
+    return opt
+
+def run_training(opt):
+    train(opt)
 
 @app.post("/predict")
 async def predict(full_photo: UploadFile = File(...), credentials: HTTPBasicCredentials = Depends(verify_credentials)):
@@ -196,3 +220,24 @@ async def predict_segment(full_photo: UploadFile = File(...), segment_photo: Upl
         stack_trace = traceback.format_exc()
         logger.error(f"Exception occurred: {error_msg}\n{stack_trace}")
         return {"error": error_msg}
+
+@app.post("/train")
+async def train_api(background_tasks: BackgroundTasks, config: Dict[str, Any] = Body(...), credentials: HTTPBasicCredentials = Depends(verify_credentials)):
+    try:
+        logger.info("Received request to /train")
+        experiment_name = config.get('experiment_name')
+        if not experiment_name:
+            raise HTTPException(status_code=400, detail="experiment_name is required")
+        saved_dir = f'./saved_models/{experiment_name}'
+        if os.path.exists(saved_dir):
+            raise HTTPException(status_code=409, detail="Experiment name already exists")
+        opt = get_config_from_dict(config)
+        background_tasks.add_task(run_training, opt)
+        return {"message": "Training started in the background"}
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        error_msg = str(e)
+        stack_trace = traceback.format_exc()
+        logger.error(f"Exception occurred: {error_msg}\n{stack_trace}")
+        raise HTTPException(status_code=500, detail=error_msg)
