@@ -1,15 +1,19 @@
 # app.py
-# Updated app.py: Integrates YOLOv8 for license plate detection, OCR, Basic Authentication, returns base64 images, and vehicle multi-class detection
+# Updated app.py: Integrates YOLOv8 for license plate detection, OCR, Basic Authentication, returns base64 images, vehicle multi-class detection, and sends training results to Django
 
 # Prerequisites:
 # - Install Ultralytics for YOLOv8: pip install ultralytics
 # - Install FastAPI security dependencies: pip install fastapi[all]
 # - Install python-dotenv: pip install python-dotenv
+# - Install requests: pip install requests
 # - Run the app: uvicorn App:app --host 0.0.0.0 --port 8000 --reload
 
 import os
 import base64
-import logging  # Added for more error logging
+import logging
+import requests
+import json
+import traceback
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status, BackgroundTasks, Body
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from dotenv import load_dotenv
@@ -18,7 +22,6 @@ from ultralytics import YOLO
 import numpy as np
 import cv2
 import io
-import traceback
 from multiclass.multiclass_detector import detect_vehicle_attributes
 from typing import Dict, Any
 import pandas as pd
@@ -32,9 +35,13 @@ security = HTTPBasic()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Hardcoded credentials for testing
+# Hardcoded credentials for FastAPI
 USERNAME = "admin"
 PASSWORD = "Admin@123"
+
+# Django endpoint and credentials
+DJANGO_URL = 'http://192.168.1.195:8008/api/ocr-create-trained/'
+DJANGO_AUTH = ('raspberrypi', 'Admin@zxcasdqwe')
 
 def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
     logger.info(f"Received credentials: username={credentials.username}")
@@ -49,7 +56,7 @@ def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
     return credentials
 
 # Initialize the recognizer and detector
-MODEL_PATH = 'saved_models/mn_filtered_v24-85Kimage/best_accuracy.pth'  # OCR model (fix path if needed)
+MODEL_PATH = 'saved_models/mn_filtered_v24-85Kimage/best_accuracy.pth'  # OCR model
 CONFIG_PATH = 'config_files/mn_filtered_config_v6m1000.yaml'  # OCR config
 DETECTION_MODEL_PATH = 'saved_models/plate_detection/plate_detection.pt'
 
@@ -73,8 +80,111 @@ def get_config_from_dict(config_dict: Dict[str, Any]):
     os.makedirs(f'./saved_models/{opt.experiment_name}', exist_ok=True)
     return opt
 
+def parse_log_train(log_content: str) -> dict:
+    lines = log_content.strip().split('\n')
+    last_loss_line = None
+    last_current_line = None
+    last_best_line = None
+    for line in lines:
+        line = line.strip()
+        if line.startswith('[') and 'Train loss:' in line:
+            last_loss_line = line
+        elif line.startswith('Current_accuracy'):
+            last_current_line = line
+        elif line.startswith('Best_accuracy'):
+            last_best_line = line
+
+    metrics = {}
+    if last_loss_line:
+        parts = last_loss_line.split(', ')
+        metrics['train_loss'] = float(parts[0].split('Train loss: ')[1].strip())
+        metrics['valid_loss'] = float(parts[1].split('Valid loss: ')[1].strip())
+        metrics['elapsed_time'] = float(parts[2].split('Elapsed_time: ')[1].strip())
+    if last_current_line:
+        parts = last_current_line.split(', ')
+        metrics['current_accuracy'] = float(parts[0].split(' : ')[1].strip())
+        metrics['current_norm_ed'] = float(parts[1].split(' : ')[1].strip())
+    if last_best_line:
+        parts = last_best_line.split(', ')
+        metrics['best_accuracy'] = float(parts[0].split(' : ')[1].strip())
+        metrics['best_norm_ed'] = float(parts[1].split(' : ')[1].strip())
+    return metrics
+
+def parse_log_dataset(log_content: str) -> dict:
+    metrics = {}
+    lines = log_content.strip().split('\n')
+    for line in lines:
+        if 'num total samples of' in line:
+            metrics['num_train_samples'] = int(line.split(': ')[1].split(' x')[0].strip())
+        if 'sub-directory: /. num samples:' in line:
+            metrics['num_valid_samples'] = int(line.split('num samples: ')[1].strip())
+    return metrics
+
+def send_to_django(opt, metrics, dataset_metrics, model_path):
+    data = {
+        "experiment_name": opt.experiment_name,
+        "elapsed_time": str(metrics.get('elapsed_time', '')),
+        "train_loss": str(metrics.get('train_loss', '')),
+        "valid_loss": str(metrics.get('valid_loss', '')),
+        "current_accuracy": str(metrics.get('current_accuracy', '')),
+        "current_norm_ed": str(metrics.get('current_norm_ed', '')),
+        "best_accuracy": str(metrics.get('best_accuracy', '')),
+        "best_norm_ed": str(metrics.get('best_norm_ed', '')),
+        "num_train_samples": str(dataset_metrics.get('num_train_samples', '')),
+        "num_valid_samples": str(dataset_metrics.get('num_valid_samples', ''))
+    }
+
+    files = {}
+    if os.path.exists(model_path):
+        files['model_file'] = ('best_accuracy.pth', open(model_path, 'rb'), 'application/octet-stream')
+    else:
+        logger.warning(f"Model file {model_path} not found")
+
+    try:
+        response = requests.post(DJANGO_URL, data=data, files=files, auth=DJANGO_AUTH)
+        logger.info(f"Django response: {response.status_code} {response.text}")
+        if not response.ok:
+            logger.error(f"Failed to send to Django: {response.status_code} {response.text}")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error sending to Django: {str(e)}\n{traceback.format_exc()}")
+    finally:
+        for file_key, file_tuple in files.items():
+            file_tuple[1].close()  # Close file handle
+
 def run_training(opt):
-    train(opt)
+    try:
+        train(opt)
+        
+        # After training, collect and send data to Django
+        experiment_dir = f'./saved_models/{opt.experiment_name}'
+        
+        # Read logs
+        log_train_path = f'{experiment_dir}/log_train.txt'
+        log_dataset_path = f'{experiment_dir}/log_dataset.txt'
+        model_path = f'{experiment_dir}/best_accuracy.pth'
+        
+        metrics = {}
+        dataset_metrics = {}
+        
+        if os.path.exists(log_train_path):
+            with open(log_train_path, 'r', encoding='utf8') as f:
+                log_train_content = f.read()
+            metrics = parse_log_train(log_train_content)
+        else:
+            logger.warning(f"Log file {log_train_path} not found")
+        
+        if os.path.exists(log_dataset_path):
+            with open(log_dataset_path, 'r', encoding='utf8') as f:
+                log_dataset_content = f.read()
+            dataset_metrics = parse_log_dataset(log_dataset_content)
+        else:
+            logger.warning(f"Log file {log_dataset_path} not found")
+        
+        # Send to Django
+        send_to_django(opt, metrics, dataset_metrics, model_path)
+        
+    except Exception as e:
+        logger.error(f"Training failed: {str(e)}\n{traceback.format_exc()}")
 
 @app.post("/predict")
 async def predict(full_photo: UploadFile = File(...), credentials: HTTPBasicCredentials = Depends(verify_credentials)):
