@@ -15,6 +15,7 @@ trainer/.env
 trainer/all_data/mn_test/
 trainer/all_data/mn_train/
 trainer/all_data/mn_val/
+runs/
 build/
 develop-eggs/
 dist/
@@ -118,3 +119,6 @@ ENV/
 
 #Videos
 /opt/easyOCR/output.mp4
+
+# models
+trainer/saved_models/*

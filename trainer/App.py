@@ -58,7 +58,7 @@ def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
 # Initialize the recognizer and detector
 MODEL_PATH = 'saved_models/mn_filtered_v24-85Kimage/best_accuracy.pth'  # OCR model
 CONFIG_PATH = 'config_files/mn_filtered_config_v6m1000.yaml'  # OCR config
-DETECTION_MODEL_PATH = 'saved_models/plate_detection/plate_detection.pt'
+DETECTION_MODEL_PATH = 'saved_models/plate_detection/best.pt'
 
 recognizer = LicensePlateRecognizer(MODEL_PATH, CONFIG_PATH)
 detector = YOLO(DETECTION_MODEL_PATH)
