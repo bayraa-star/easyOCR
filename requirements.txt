@@ -1,6 +1,4 @@
-torch
 gunicorn
-torchvision>=0.5
 opencv-python-headless
 opencv-python
 scipy
