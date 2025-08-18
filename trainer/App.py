@@ -40,7 +40,7 @@ USERNAME = "admin"
 PASSWORD = "Admin@123"
 
 # Django endpoint and credentials
-DJANGO_URL = 'http://192.168.1.195:8008/api/ocr-create-trained/'
+DJANGO_URL = 'http://localhost:8008/api/ocr-create-trained/'
 DJANGO_AUTH = ('raspberrypi', 'Admin@zxcasdqwe')
 
 def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
