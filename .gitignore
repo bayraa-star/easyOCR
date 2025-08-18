@@ -119,6 +119,3 @@ ENV/
 
 #Videos
 /opt/easyOCR/output.mp4
-
-# models
-trainer/saved_models/*
