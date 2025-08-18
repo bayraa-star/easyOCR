@@ -1,4 +1,3 @@
-gunicorn
 opencv-python-headless
 opencv-python
 scipy
