@@ -58,7 +58,7 @@ def get_category(label):
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = MultiLabelModel(num_classes=num_classes).to(device)
 model_path = os.path.join(base_dir, 'saved_models', 'multiclass', 'multilabel_vehicle_model_epch_70K.pth')
-model.load_state_dict(torch.load(model_path))
+model.load_state_dict(torch.load(model_path, map_location=device))
 
 # Inference function
 def predict_image(image_pil, model, transform, device):
