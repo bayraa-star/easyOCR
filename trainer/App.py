@@ -2,6 +2,7 @@
 # Updated app.py: Integrates YOLOv8 for license plate detection, OCR, Basic Authentication, returns base64 images, vehicle multi-class detection, and sends training results to Django
 # Now returns per-character details from OCR prediction
 # Added handling for empty uploads to prevent OpenCV errors
+# Returns "TRAIN" if plate_number is empty
 
 # Prerequisites:
 # - Install Ultralytics for YOLOv8: pip install ultralytics
@@ -264,6 +265,12 @@ async def predict(full_photo: UploadFile = File(...), credentials: HTTPBasicCred
         plate_number, precision, char_details = ocr_result
         logger.info(f"Recognized plate number: {plate_number}")
         
+        # Handle empty plate_number
+        if not plate_number:
+            plate_number = "TRAIN"
+            precision = 0.0
+            char_details = []
+        
         # Format char_details as list of dicts for JSON serialization
         formatted_char_details = [{"character": char, "confidence": conf} for char, conf in char_details]
         
@@ -351,6 +358,12 @@ async def predict_segment(full_photo: UploadFile = File(...), segment_photo: Upl
         ocr_result = recognizer.predict(segment_img)
         plate_number, precision, char_details = ocr_result
         logger.info(f"Recognized plate number: {plate_number}")
+        
+        # Handle empty plate_number
+        if not plate_number:
+            plate_number = "TRAIN"
+            precision = 0.0
+            char_details = []
         
         # Format char_details as list of dicts for JSON serialization
         formatted_char_details = [{"character": char, "confidence": conf} for char, conf in char_details]
