@@ -1,5 +1,7 @@
 # app.py
 # Updated app.py: Integrates YOLOv8 for license plate detection, OCR, Basic Authentication, returns base64 images, vehicle multi-class detection, and sends training results to Django
+# Now returns per-character details from OCR prediction
+# Added handling for empty uploads to prevent OpenCV errors
 
 # Prerequisites:
 # - Install Ultralytics for YOLOv8: pip install ultralytics
@@ -195,12 +197,21 @@ async def predict(full_photo: UploadFile = File(...), credentials: HTTPBasicCred
         contents = await full_photo.read()
         logger.info(f"Uploaded file: {full_photo.filename}, size: {len(contents)} bytes")
         
+        # Handle empty upload
+        if len(contents) == 0:
+            logger.error("Uploaded file is empty")
+            return {"error": "Uploaded file is empty or invalid"}
+        
         # Convert to base64 for full_photo
         full_photo_base64 = base64.b64encode(contents).decode('utf-8')
         
         # Convert to NumPy array and decode as image
         nparr = np.frombuffer(contents, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        try:
+            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        except cv2.error as e:
+            logger.error(f"OpenCV decode error: {e}")
+            return {"error": "Failed to process image"}
         
         if img is None:
             logger.error("Failed to decode image")
@@ -248,12 +259,18 @@ async def predict(full_photo: UploadFile = File(...), credentials: HTTPBasicCred
         _, buffer = cv2.imencode('.jpg', cropped_img)  # Encode as JPEG
         cropped_img_base64 = base64.b64encode(buffer).decode('utf-8')
 
-        plate_number = recognizer.predict(cropped_img)
+        # Updated: Unpack OCR results to include char_details
+        ocr_result = recognizer.predict(cropped_img)
+        plate_number, precision, char_details = ocr_result
         logger.info(f"Recognized plate number: {plate_number}")
         
+        # Format char_details as list of dicts for JSON serialization
+        formatted_char_details = [{"character": char, "confidence": conf} for char, conf in char_details]
+        
         response = {
-            "plate_number": plate_number[0][0],
-            "precision": plate_number[1],
+            "plate_number": plate_number,
+            "precision": precision,
+            "char_details": formatted_char_details,
             "vehicle_attributes": vehicle_attributes,
             #"full_photo_base64": full_photo_base64,
             "cropped_img_base64": cropped_img_base64,
@@ -277,12 +294,21 @@ async def predict_segment(full_photo: UploadFile = File(...), segment_photo: Upl
         full_contents = await full_photo.read()
         logger.info(f"Uploaded full_photo: {full_photo.filename}, size: {len(full_contents)} bytes")
         
+        # Handle empty full_photo
+        if len(full_contents) == 0:
+            logger.error("Uploaded full_photo is empty")
+            return {"error": "Uploaded full_photo is empty or invalid"}
+        
         # Convert to base64 for full_photo (commented out in response as in original)
         full_photo_base64 = base64.b64encode(full_contents).decode('utf-8')
         
         # Convert to NumPy array and decode as image
         full_nparr = np.frombuffer(full_contents, np.uint8)
-        full_img = cv2.imdecode(full_nparr, cv2.IMREAD_COLOR)
+        try:
+            full_img = cv2.imdecode(full_nparr, cv2.IMREAD_COLOR)
+        except cv2.error as e:
+            logger.error(f"OpenCV decode error for full image: {e}")
+            return {"error": "Failed to process full image"}
         
         if full_img is None:
             logger.error("Failed to decode full image")
@@ -300,9 +326,18 @@ async def predict_segment(full_photo: UploadFile = File(...), segment_photo: Upl
         segment_contents = await segment_photo.read()
         logger.info(f"Uploaded segment_photo: {segment_photo.filename}, size: {len(segment_contents)} bytes")
         
+        # Handle empty segment_photo
+        if len(segment_contents) == 0:
+            logger.error("Uploaded segment_photo is empty")
+            return {"error": "Uploaded segment_photo is empty or invalid"}
+        
         # Convert to NumPy array and decode as image
         segment_nparr = np.frombuffer(segment_contents, np.uint8)
-        segment_img = cv2.imdecode(segment_nparr, cv2.IMREAD_COLOR)
+        try:
+            segment_img = cv2.imdecode(segment_nparr, cv2.IMREAD_COLOR)
+        except cv2.error as e:
+            logger.error(f"OpenCV decode error for segment image: {e}")
+            return {"error": "Failed to process segment image"}
         
         if segment_img is None:
             logger.error("Failed to decode segment image")
@@ -312,11 +347,18 @@ async def predict_segment(full_photo: UploadFile = File(...), segment_photo: Upl
         _, buffer = cv2.imencode('.jpg', segment_img)  # Encode as JPEG
         segment_img_base64 = base64.b64encode(buffer).decode('utf-8')
 
-        plate_number = recognizer.predict(segment_img)
+        # Updated: Unpack OCR results to include char_details
+        ocr_result = recognizer.predict(segment_img)
+        plate_number, precision, char_details = ocr_result
         logger.info(f"Recognized plate number: {plate_number}")
+        
+        # Format char_details as list of dicts for JSON serialization
+        formatted_char_details = [{"character": char, "confidence": conf} for char, conf in char_details]
         
         response = {
             "plate_number": plate_number,
+            "precision": precision,
+            "char_details": formatted_char_details,
             "vehicle_attributes": vehicle_attributes,
             #"full_photo_base64": full_photo_base64,
             "cropped_img_base64": segment_img_base64,

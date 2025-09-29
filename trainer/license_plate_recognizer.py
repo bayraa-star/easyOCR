@@ -44,7 +44,7 @@ class LicensePlateRecognizer:
             self.opt.num_class = len(self.opt.character) + 1  # +1 for CTC blank
         else:
             self.opt.num_class = len(self.opt.character)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cpu")
         self.model = Model(self.opt).to(self.device)
         state_dict = torch.load(model_path, map_location=self.device)
         if "module." in list(state_dict.keys())[0]:
@@ -52,6 +52,9 @@ class LicensePlateRecognizer:
         self.model.load_state_dict(state_dict)
         self.model.eval()
         self.converter = CTCLabelConverter(self.opt.character)
+        self.blank_id = 0  # Assuming blank is index 0
+        self.char_list = list(self.opt.character)  # Chars at indices 1 to len(character)
+        self.conf_threshold = 0.9  # Threshold for keeping characters
 
     def predict(self, image_array):
         """Predict text from a NumPy image array."""
@@ -72,8 +75,12 @@ class LicensePlateRecognizer:
 
         preds_size = torch.IntTensor([preds.size(1)])
         _, preds_index = preds.max(2)
-        pred_str = self.converter.decode_greedy(preds_index[0].cpu(), preds_size.cpu())
 
+        # Use converter for pred_str (assuming it returns list for batch=1)
+        raw_pred_str = self.converter.decode_greedy(preds_index[0].cpu(), preds_size.cpu())
+        pred_str = raw_pred_str[0] if isinstance(raw_pred_str, list) else raw_pred_str
+
+        # Manual cleaning if needed (fallback, but our conf logic handles CTC properly)
         if "[blank]" in pred_str:
             pred_str = pred_str.replace("[blank]", "")
             cleaned = []
@@ -82,21 +89,52 @@ class LicensePlateRecognizer:
                     cleaned.append(char)
             pred_str = "".join(cleaned)
 
-        # Collect per-character confidences
-        preds_index = preds_index[0].cpu()  # (T,)
+        # Collect per-character confidences with proper CTC decoding logic
         length = preds_size.item()
-        char_confs = []
-        for i in range(length):
-            curr = preds_index[i]
-            if curr != 0 and (i == 0 or curr != preds_index[i-1]):
-                conf = probs[0, i, curr].item()  # Since preds (B=1, T, C), probs[0, i, curr]
-                char_confs.append(conf)
+        preds_index_list = preds_index[0].cpu().tolist()  # (T,) as list
+        orig_times = [idx for idx, label in enumerate(preds_index_list) if label != self.blank_id]
 
-        if char_confs:
-            log_confs = [math.log(max(c, 1e-10)) for c in char_confs]
+        char_confs = []
+        if orig_times:
+            non_blank_labels = [preds_index_list[t] for t in orig_times]
+            j = 0
+            while j < len(non_blank_labels):
+                curr = non_blank_labels[j]
+                group_start = j
+                while j < len(non_blank_labels) - 1 and non_blank_labels[j + 1] == curr:
+                    j += 1
+                group_end = j
+                group_times = orig_times[group_start:group_end + 1]
+                group_confs = [probs[0, t, curr].item() for t in group_times]
+                max_conf = max(group_confs)
+                char_confs.append(max_conf)
+                j += 1
+
+        # Ensure lengths match (in case of manual cleaning discrepancies)
+        if len(char_confs) != len(pred_str):
+            # Fallback: average or pad with 1.0, but log warning
+            import logging
+            logging.warning(f"Length mismatch: len(char_confs)={len(char_confs)}, len(pred_str)={len(pred_str)}. Using average conf.")
+            avg_conf = sum(char_confs) / len(char_confs) if char_confs else 0.0
+            char_confs = [avg_conf] * len(pred_str)
+
+        # Filter characters and confidences based on threshold
+        filtered_chars = []
+        filtered_confs = []
+        for char, conf in zip(pred_str, char_confs):
+            if conf >= self.conf_threshold:
+                filtered_chars.append(char)
+                filtered_confs.append(conf)
+
+        filtered_pred_str = "".join(filtered_chars)
+        char_details = list(zip(filtered_chars, filtered_confs))
+
+        # Compute overall confidence as geometric mean of filtered confidences
+        if filtered_confs:
+            log_confs = [math.log(max(c, 1e-10)) for c in filtered_confs]
             avg_log = sum(log_confs) / len(log_confs)
             confidence = math.exp(avg_log)
         else:
             confidence = 0.0
 
-        return pred_str, confidence
+        return filtered_pred_str, confidence, char_details
