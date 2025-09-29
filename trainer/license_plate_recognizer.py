@@ -54,7 +54,7 @@ class LicensePlateRecognizer:
         self.converter = CTCLabelConverter(self.opt.character)
         self.blank_id = 0  # Assuming blank is index 0
         self.char_list = list(self.opt.character)  # Chars at indices 1 to len(character)
-        self.conf_threshold = 0.85  # Threshold for keeping characters
+        self.conf_threshold = 0.7  # Threshold for keeping characters
 
     def predict(self, image_array):
         """Predict text from a NumPy image array."""
